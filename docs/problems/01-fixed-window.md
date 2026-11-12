@@ -93,6 +93,16 @@ sub-millisecond window so you never divide by zero.
 - The map grows one entry per client id ever seen. That's fine here; in production
   you'd evict idle entries (or move the counter to Redis with a TTL).
 
+## Complexity
+
+With **N = `maxRequests`** and **C = number of distinct clients seen**:
+
+- **Time:** O(1) per `allowRequest` — constant-time window arithmetic, one
+  constant-time map lookup, and a single counter update.
+- **Space:** O(C) — one tiny node per client (a window index and a counter), and
+  no per-request storage. It grows with the number of distinct clients, not with
+  request volume.
+
 ## Where it lives
 
 ```

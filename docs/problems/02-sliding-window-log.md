@@ -90,6 +90,18 @@ same behaviour with two integers.
 - The per-client log is capped at N entries, but the **number of clients** is not
   — decide how you'd bound that in production.
 
+## Complexity
+
+With **N = `maxRequests`** and **C = number of distinct clients seen**:
+
+- **Time:** O(1) amortised per `allowRequest`. Each timestamp is appended once and
+  evicted at most once over its lifetime, so the eviction cost is spread across
+  calls. A single call may evict up to N entries at once (a worst case of O(N)),
+  but that is amortised away.
+- **Space:** O(C·N) worst case — one timestamp per allowed request, capped at N
+  per client. The O(N) per client is the price of being exact, and it is exactly
+  the cost the sliding window counter trades away next.
+
 ## Where it lives
 
 ```
