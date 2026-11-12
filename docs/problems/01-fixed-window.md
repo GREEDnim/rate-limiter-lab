@@ -9,6 +9,30 @@ comes from an injected `Clock` so it can be tested. The limiter must be
 thread-safe: concurrent callers can never squeeze more than N through, per client,
 per window.
 
+## Why this algorithm exists
+
+It is the simplest limiter there is: **one integer per client**, reset on a fixed
+schedule. That buys O(1) time and O(1) memory per client, and it makes atomicity
+trivial — the whole decision is a single counter.
+
+Its weakness is the **boundary burst**. Because the budget refills all at once at a
+clock boundary, a client can spend its whole budget at the very end of one window
+and its whole budget again right after the next begins — up to **2N in a moment**,
+even though no single rolling window was ever exceeded.
+
+```
+   N = 5
+
+   ...|------ window 0 ------|------ window 1 ------|...
+             [5 used late]     [5 used early]
+             └──────────── up to 10 requests in a short span ───────────┘
+```
+
+Notice the windows are **epoch-aligned**: every client's boundaries fall on the
+same instants (`0`, `W`, `2W`, …). That is deliberate — shared boundaries are what
+reduce each client to "one number", which is also what later makes the distributed
+version a single atomic increment.
+
 ## The idea in one picture
 
 Cut time into equal, epoch-aligned slices. A client's counter belongs to the slice

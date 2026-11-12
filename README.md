@@ -10,6 +10,7 @@ yourself — plus how to run its tests. You write the code; the tests are the sp
 |---|---|---|
 | 01 | Fixed-window rate limiter | [docs/problems/01-fixed-window.md](docs/problems/01-fixed-window.md) |
 | 02 | Sliding window log | [docs/problems/02-sliding-window-log.md](docs/problems/02-sliding-window-log.md) |
+| 03 | Sliding window counter | [docs/problems/03-sliding-window-counter.md](docs/problems/03-sliding-window-counter.md) |
 
 ## Run the tests
 

@@ -26,6 +26,10 @@ the end of one window and the whole budget again at the start of the next — up
                         [ ... at most 5 ... ]
 ```
 
+The cost of that exactness is **O(N) memory per client** — one stored timestamp per
+allowed request. The sliding window counter next keeps most of the smoothness with
+just two integers.
+
 ## The idea
 
 Keep the **timestamp of every allowed request** for a client. A new request is
@@ -57,6 +61,10 @@ The window is the **half-open** interval `(now - window, now]`:
 - a request made at `now` counts immediately;
 - a timestamp exactly `window` old has **expired** — a request made at `t` is
   allowed again at exactly `t + window`.
+
+Half-open keeps the arithmetic clean: a request becomes reusable at exactly
+`t + window`, and several calls in the same millisecond are all charged to that one
+instant.
 
 ## Approach
 
