@@ -11,7 +11,9 @@ import java.time.ZoneId;
  */
 public final class MutableClock extends Clock {
 
-    private Instant instant;
+    // Volatile so it can be advanced from a test driver thread while worker threads
+    // read it concurrently (as the rollover concurrency test does).
+    private volatile Instant instant;
     private final ZoneId zone;
 
     public MutableClock(Instant start) {
