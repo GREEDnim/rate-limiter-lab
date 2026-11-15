@@ -1,10 +1,11 @@
 package com.lld.ratelimiter.fixedwindow;
 
-import com.lld.ratelimiter.RateLimiter;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.lld.ratelimiter.RateLimiter;
 
 /**
  * Fixed-window rate limiter: at most {@code maxRequests} admissions per client per
@@ -57,18 +58,18 @@ public class FixedWindowRateLimiter implements RateLimiter {
             throw new IllegalArgumentException("clientId must be non-null and non-blank");
         }
 
-        long currentIndex = clock.millis() / windowMillis;
+        long currentIndex = clock.millis() / windowMillis;   // the epoch-aligned window
         Node node = nodes.computeIfAbsent(clientId, key -> new Node());
         return node.tryConsume(currentIndex, maxRequests);
     }
 
     /**
      * One client's counter. The node is also its own lock, so threads for the same
-     * client serialize here while different clients run in parallel.
+     * client serialize here while different clients run in parallel (lock striping).
      */
     private static final class Node {
 
-        private long windowIndex = Long.MIN_VALUE;   // forces a reset on first use
+        private long windowIndex = Long.MIN_VALUE;   // unset: forces a refill on first use
         private int remaining;
 
         synchronized boolean tryConsume(long currentWindowIndex, int maxRequests) {
