@@ -14,6 +14,10 @@ yourself — plus how to run its tests. You write the code; the tests are the sp
 | 04 | Token bucket | [docs/problems/04-token-bucket.md](docs/problems/04-token-bucket.md) |
 | 05 | Leaky bucket *(note — the dual of token bucket)* | [docs/problems/05-leaky-bucket.md](docs/problems/05-leaky-bucket.md) |
 | 06 | GCRA | [docs/problems/06-gcra.md](docs/problems/06-gcra.md) |
+| 07 | Shared state behind a store | [docs/problems/07-distributed-store.md](docs/problems/07-distributed-store.md) |
+
+*Learn-only (read, don't build here): distributed token bucket / GCRA, and local +
+global limiting — see "Where next" in problem 07.*
 
 ## Run the tests
 
