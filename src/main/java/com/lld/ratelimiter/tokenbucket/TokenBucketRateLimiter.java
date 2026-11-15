@@ -57,28 +57,44 @@ public class TokenBucketRateLimiter implements RateLimiter {
             throw new IllegalArgumentException("clientId must be non-null and non-blank");
         }
 
-        Node node = nodes.computeIfAbsent(clientId, key -> new Node());
-        return node.allowRequest(clock.millis());
+        long now = clock.millis();
+        Node node = nodes.computeIfAbsent(clientId,
+                key -> new Node(capacity, refillTokens, refillPeriodMillis, now));
+        return node.allowRequest(now);
     }
 
     /**
-     * One client's bucket. The node is also its own lock, so threads for the same
-     * client serialize here while different clients run in parallel.
+     * One client's bucket: its token level and when it was last refilled. The node is
+     * also its own lock, so threads for the same client serialize here while different
+     * clients run in parallel.
      */
-    private final class Node {
+    private static final class Node {
 
-        private double tokens = capacity;                 // starts full
-        private long lastRefillMs = clock.millis();
+        private final int capacity;
+        private final int refillTokens;
+        private final long refillPeriodMillis;
+        private double tokens;              // fractional, so a slow refill still accrues
+        private long lastRefillMs;
+
+        Node(int capacity, int refillTokens, long refillPeriodMillis, long nowMillis) {
+            this.capacity = capacity;
+            this.refillTokens = refillTokens;
+            this.refillPeriodMillis = refillPeriodMillis;
+            this.tokens = capacity;         // a new client starts with a full bucket
+            this.lastRefillMs = nowMillis;
+        }
 
         synchronized boolean allowRequest(long nowMs) {
+            // Top the bucket up for the time that has passed, never above capacity.
+            // Refilling by the elapsed rate — not by whole periods — keeps the bucket
+            // smooth and the sustained rate exact.
             long elapsed = nowMs - lastRefillMs;
             if (elapsed > 0) {
-                // Refill by the elapsed rate, not by whole periods, so partial time
-                // still accrues and the rate is exact for any token count.
                 tokens = Math.min(capacity,
                         tokens + (double) elapsed * refillTokens / refillPeriodMillis);
                 lastRefillMs = nowMs;
             }
+            // Spend one token if a whole one is available.
             if (tokens >= 1.0) {
                 tokens -= 1.0;
                 return true;
