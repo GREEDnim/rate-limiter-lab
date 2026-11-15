@@ -54,12 +54,39 @@ clientId ──► { tokens, lastRefillMillis }
   so a slow refill still accrues).
 - `lastRefillMillis` — when we last topped the bucket up.
 
-## How the refill works (part of the spec)
+## How it works
 
-There is **no timer thread**. On each request, top the bucket up for the time that
-has passed, then spend:
+A bucket of tokens that **drains** as you make requests and **refills** with the
+passage of time. The whole algorithm falls out of that picture:
+
+- **Spending** — each allowed request removes one token. With no time passing, a
+  client can do this exactly `capacity` times before the bucket is empty. That is the
+  **burst**.
+- **Refilling** — time puts tokens back at `refillTokens / refillPeriod`. Spend at
+  exactly that rate and you refill as fast as you spend, so the bucket never empties
+  and you can go forever; spend *faster* and it drains to zero and you are rejected.
+  That is the **sustained rate**.
+- **The cap** — the bucket never holds more than `capacity`, so a client that sits
+  idle banks tokens, but only up to that ceiling. An hour of quiet buys the same
+  bounded burst as a minute.
+
+So the two guarantees come straight from the two knobs:
 
 ```
+burst   is bounded by   capacity
+average is bounded by   refillTokens / refillPeriod
+```
+
+Notice there is **no timer**. Instead of dripping tokens on a schedule, you top the
+bucket up for the time that has passed the *next time the client shows up*. That is
+algebraically identical to a real drip, with no background thread — the only cost is
+that you must remember when you last topped it up.
+
+## The exact rule (part of the spec)
+
+On each request, top up for the elapsed time, then spend:
+
+```text
 now        = clock.millis()
 tokens     = min(capacity, tokens + (now - lastRefill) × refillTokens / refillPeriod)
 lastRefill = now
@@ -68,20 +95,13 @@ if tokens ≥ 1:  tokens -= 1  →  ALLOW
 else:                            REJECT
 ```
 
-Two things to notice:
+Two details that matter:
 
-- **Refill is continuous, not tick-based.** Half a `refillPeriod` buys half a
-  token; tokens accrue as a fraction so the limiter stays smooth. Keeping the level
-  as a `double` (or a scaled integer to avoid drift) is what makes that work.
-- **A brand-new client starts with a full bucket** (`capacity` tokens), so its
-  first burst is allowed.
-
-## Why it handles bursts (the point of the algorithm)
-
-`capacity` is *credit a client can bank by being quiet*. Spend everything and you
-are down to the refill rate; wait, and the bucket fills back to `capacity`, so the
-next burst is allowed again. The **rate** never lets sustained traffic exceed the
-sustained limit, while the **cap** bounds a single burst.
+- **Refill is continuous, not tick-based.** Half a `refillPeriod` buys half a token,
+  so the limiter stays smooth. Keep the level as a `double` (or a scaled integer to
+  avoid drift), not a whole number.
+- **A brand-new client starts with a full bucket** (`capacity` tokens), so its first
+  burst is allowed.
 
 ## Approach
 
