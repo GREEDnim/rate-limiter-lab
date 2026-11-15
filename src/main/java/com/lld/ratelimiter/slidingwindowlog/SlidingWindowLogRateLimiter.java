@@ -11,11 +11,16 @@ import com.lld.ratelimiter.RateLimiter;
 
 /**
  * Sliding-window-log rate limiter: at most {@code maxRequests} admissions per client
- * over the trailing {@code window}, measured from the injected clock.
+ * over the trailing {@code window} — the {@linkplain RateLimiter} of problem 01 without
+ * its boundary burst, because the window rolls with the request instead of resetting on
+ * a clock boundary.
  *
- * <p>State is one {@link Node} per client in a {@link ConcurrentHashMap}, mirroring
- * {@code FixedWindowRateLimiter}. The node is its own lock, so admitting is atomic
- * per client while different clients run in parallel.
+ * <p>Each client keeps the timestamps of its allowed requests. A request is admitted
+ * only if fewer than {@code maxRequests} of them fall inside {@code (now - window, now]};
+ * older ones are dropped. Rejected requests are not recorded.
+ *
+ * <p>State is one {@link Node} per client in a {@link ConcurrentHashMap}. The node is its
+ * own lock, so admitting is atomic per client while different clients run in parallel.
  */
 public class SlidingWindowLogRateLimiter implements RateLimiter {
 
@@ -53,8 +58,9 @@ public class SlidingWindowLogRateLimiter implements RateLimiter {
     }
 
     /**
-     * One client's log of admission timestamps. The node is its own lock, so threads
-     * for the same client serialize here while different clients run in parallel.
+     * One client's log of admission timestamps, oldest first. The node is also its own
+     * lock, so threads for the same client serialize here while different clients run in
+     * parallel.
      */
     private static final class Node {
 
@@ -70,13 +76,18 @@ public class SlidingWindowLogRateLimiter implements RateLimiter {
         }
 
         synchronized boolean allowRequest() {
-            long nowMillis = clock.millis();
-            long windowStart = nowMillis - windowMillis;
+            // Read the clock under the lock so the log stays sorted oldest-first.
+            long now = clock.millis();
+            long windowStart = now - windowMillis;
+
+            // Drop whatever fell out of the trailing window (now - window, now].
             while (!timestamps.isEmpty() && timestamps.peekFirst() <= windowStart) {
                 timestamps.pollFirst();
             }
+
+            // Admit if there is room, and record the timestamp only when we admit.
             if (timestamps.size() < maxRequests) {
-                timestamps.addLast(nowMillis);
+                timestamps.addLast(now);
                 return true;
             }
             return false;
