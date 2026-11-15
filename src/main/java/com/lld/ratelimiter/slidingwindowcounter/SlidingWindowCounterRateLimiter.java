@@ -26,7 +26,7 @@ public class SlidingWindowCounterRateLimiter implements RateLimiter {
     private final int maxRequests;
     private final long windowMillis;
     private final Clock clock;
-    private final ConcurrentHashMap<String, Node> nodes;
+    private final ConcurrentHashMap<String, Node> nodes = new ConcurrentHashMap<>();
 
     public SlidingWindowCounterRateLimiter(int maxRequests, Duration window) {
         this(maxRequests, window, Clock.systemUTC());
@@ -44,7 +44,6 @@ public class SlidingWindowCounterRateLimiter implements RateLimiter {
         // Clock resolution is milliseconds; clamp sub-millisecond windows to 1 ms.
         this.windowMillis = Math.max(1L, window.toMillis());
         this.clock = Objects.requireNonNull(clock, "clock");
-        this.nodes = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -67,7 +66,7 @@ public class SlidingWindowCounterRateLimiter implements RateLimiter {
         private final long windowMillis;
         private final Clock clock;
 
-        private long windowIndex = Long.MIN_VALUE;   // forces a reset on first use
+        private long windowIndex = Long.MIN_VALUE;   // unset: forces a reset on first use
         private int previousWindowCount;
         private int currentWindowCount;
 
@@ -78,23 +77,25 @@ public class SlidingWindowCounterRateLimiter implements RateLimiter {
         }
 
         synchronized boolean allowRequest() {
-            long nowMillis = clock.millis();
-            long currentIndex = nowMillis / windowMillis;
-            if (currentIndex > windowIndex) {   // only ever move forward
-                // The finished window becomes the previous one only if the new
-                // window is its immediate successor; a gap means we skipped it.
+            long now = clock.millis();
+            long currentIndex = now / windowMillis;
+
+            // Shift the counters when the window changes: the finished window becomes
+            // "previous" only if it is the immediate predecessor; a gap means a window
+            // was skipped and is forgotten (only the immediately previous one is kept).
+            if (currentIndex > windowIndex) {
                 previousWindowCount = (currentIndex == windowIndex + 1) ? currentWindowCount : 0;
                 currentWindowCount = 0;
                 windowIndex = currentIndex;
             }
 
-            // How far into the current window we are, i.e. how much of the previous
-            // window still overlaps the trailing window that ends now.
-            long elapsed = nowMillis % windowMillis;
+            // Estimate the trailing window: all of the current window, plus the part of
+            // the previous window that still overlaps (its un-elapsed fraction).
+            long elapsed = now % windowMillis;
             double estimate = currentWindowCount
                     + previousWindowCount * ((double) (windowMillis - elapsed) / windowMillis);
 
-            // Decide from the counters as they are now; record only what we admit.
+            // Decide from the counters as they are; record only what we admit.
             if (estimate < maxRequests) {
                 currentWindowCount++;
                 return true;
