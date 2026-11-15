@@ -12,6 +12,7 @@ yourself — plus how to run its tests. You write the code; the tests are the sp
 | 02 | Sliding window log | [docs/problems/02-sliding-window-log.md](docs/problems/02-sliding-window-log.md) |
 | 03 | Sliding window counter | [docs/problems/03-sliding-window-counter.md](docs/problems/03-sliding-window-counter.md) |
 | 04 | Token bucket | [docs/problems/04-token-bucket.md](docs/problems/04-token-bucket.md) |
+| 05 | Leaky bucket *(note — the dual of token bucket)* | [docs/problems/05-leaky-bucket.md](docs/problems/05-leaky-bucket.md) |
 
 ## Run the tests
 
